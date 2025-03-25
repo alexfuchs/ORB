@@ -1,0 +1,64 @@
+//@version=6
+strategy("Strategy 005 ORB - Opening Range Breakout", overlay=true, initial_capital=100, commission_type=strategy.commission.percent, commission_value=0.1, slippage=3)
+
+// User Inputs
+startDate = timestamp(2022, 1, 1, 0, 0)
+endDate = timestamp(2026, 12, 31, 23, 59)
+riskPerTrade = input(0.02, "Risk per Trade (%)") / 100
+timeframeMinutes = input(15, "Opening Range Minutes")
+exitEOD = input(false, "Exit End of Day")
+onePerDay = input(false, "One Trade Per Day")
+
+// Extract current date components
+year_ = year(time)
+month_ = month(time)
+day_ = dayofmonth(time)
+
+// Define session timestamps
+marketOpenHour = 9
+marketOpenMinute = 30
+marketCloseHour = 16
+marketCloseMinute = 45
+latestEntryHour = 11
+latestEntryMinute = 59
+
+// Define session range logic
+inOpeningRange = (hour == marketOpenHour and minute >= marketOpenMinute) or (hour == marketOpenHour and minute < (marketOpenMinute + timeframeMinutes))
+openingRangeHigh = ta.valuewhen(inOpeningRange, high, 0)
+openingRangeLow = ta.valuewhen(inOpeningRange, low, 0)
+
+// Entry Conditions
+breakoutLong = ta.crossover(close, openingRangeHigh)
+breakoutShort = ta.crossunder(close, openingRangeLow)
+validTime = (hour >= marketOpenHour and hour <= latestEntryHour and (hour != latestEntryHour or minute <= latestEntryMinute))
+
+// Debugging Information
+label.new(bar_index, high, "Opening High: " + str.tostring(openingRangeHigh), color=color.blue, textcolor=color.white, size=size.tiny)
+label.new(bar_index, low, "Opening Low: " + str.tostring(openingRangeLow), color=color.red, textcolor=color.white, size=size.tiny)
+
+// Long Trade Execution
+if (breakoutLong and validTime and time >= startDate and time <= endDate)
+    strategy.entry("Long", strategy.long)
+    stopLossLong = openingRangeLow
+    takeProfitLong = close + (close - stopLossLong) * 2
+    strategy.exit("Exit Long", from_entry="Long", stop=stopLossLong, limit=takeProfitLong)
+
+// Short Trade Execution
+if (breakoutShort and validTime and time >= startDate and time <= endDate)
+    strategy.entry("Short", strategy.short)
+    stopLossShort = openingRangeHigh
+    takeProfitShort = close - (stopLossShort - close) * 2
+    strategy.exit("Exit Short", from_entry="Short", stop=stopLossShort, limit=takeProfitShort)
+
+// Exit at End of Day
+if (exitEOD and hour == marketCloseHour and minute >= marketCloseMinute)
+    strategy.close("Long")
+    strategy.close("Short")
+
+// Preserve Visuals
+plot(openingRangeHigh, color=color.blue, title="Opening Range High")
+plot(openingRangeLow, color=color.red, title="Opening Range Low")
+
+// Debugging Strategy Execution
+plot(strategy.opentrades, color=color.green, style=plot.style_stepline, title="Open Trades")
+plot(strategy.closedtrades, color=color.orange, style=plot.style_stepline, title="Closed Trades")
