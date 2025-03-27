@@ -1,0 +1,71 @@
+
+here is the strategy:
+
+// This Pine Script™ code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © saltwater_is_epic and Sentello
+
+//@version=6
+strategy("Trend Line Predictor Strategy (No Stop Loss)", overlay=true, max_lines_count=40, initial_capital=1000, default_qty_type = strategy.cash, default_qty_value=100, commission_type = strategy.commission.percent,commission_value = 0.07)
+
+// --- INPUTS ---
+trendLength = input.int(10, 'Trend Length')
+targetMultiplier = input.int(0, 'Set Targets')
+
+// --- VARIABLES ---
+var isTrending = false
+var float trendBase = na
+
+color bullishColor = color.rgb(58, 252, 80) 
+color bearishColor = color.rgb(250, 111, 234) 
+
+// ATR for calculating stop loss and target levels
+atrValue = ta.sma(ta.atr(200), 200) * 0.8
+
+// Moving averages for trend detection
+smaHigh = ta.sma(high, trendLength) + atrValue
+smaLow = ta.sma(low, trendLength) - atrValue
+
+// --- TREND CALCULATIONS ---
+if ta.crossover(close, smaHigh) and barstate.isconfirmed
+    isTrending := true
+if ta.crossunder(close, smaLow) and barstate.isconfirmed
+    isTrending := false
+
+trendBase := isTrending ? smaLow : smaHigh
+trendDirection = isTrending ? bullishColor : bearishColor
+
+// Detect trend change signals
+trendUpSignal = ta.change(isTrending) and not isTrending[1]
+trendDownSignal = ta.change(isTrending) and isTrending[1]
+
+// --- STRATEGY ENTRIES/EXITS ---
+// When the trend changes upward, close any short and enter long
+if trendUpSignal
+    strategy.close("Short")
+    strategy.entry("Long", strategy.long)
+// When the trend changes downward, close any long and enter short
+if trendDownSignal
+    strategy.close("Long")
+    strategy.entry("Short", strategy.short)
+
+// --- PLOTTING ---
+
+// Plot candlesticks with trend color
+plotcandle(open, high, low, close, title='Candles', color=trendDirection, wickcolor=trendDirection, bordercolor=trendDirection)
+
+// Plot trailing stops (simplified stop loss area)
+plotUp = plot(isTrending ? trendBase : na, style=plot.style_linebr, color=trendDirection, linewidth=4)
+plotDown = plot(not isTrending ? trendBase : na, style=plot.style_linebr, color=trendDirection, linewidth=4)
+plotMiddle = plot(hl2, display=display.none, editable=false)
+fill(plotUp, plotMiddle, color.new(bullishColor, 90), na)
+fill(plotDown, plotMiddle, color.new(bearishColor, 90), na)
+
+// Plot trend change signals as labels
+signalUp = trendUpSignal ? low - atrValue * 2 : na
+signalDown = trendDownSignal ? high + atrValue * 2 : na
+
+if not na(signalUp)
+    label.new(bar_index, low - atrValue * 2, "BUY", style=label.style_label_up, color=color.rgb(82, 240, 88), textcolor=color.white, size=size.small)
+
+if not na(signalDown)
+    label.new(bar_index, high + atrValue * 2, "SELL", style=label.style_label_down, color=color.rgb(244, 142, 255), textcolor=color.white, size=size.small)
